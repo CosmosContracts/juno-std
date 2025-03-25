@@ -1,0 +1,30 @@
+[package]
+description = "This package is a modified copy of the osmosis package - https://github.com/osmosis-labs/osmosis-rust/tree/main/packages/proto-build"
+authors = [
+    "Supanat Potiwarakorn <boss@osmosis.team>",
+    "Justin Kilpatrick <justin@althea.net>",
+    "Tony Arcieri <tony@iqlusion.io>",
+]
+edition = "2021"
+name = "proto-build"
+publish = false
+version = "0.1.0"
+
+[dependencies]
+heck = "0.5.0"
+itertools = "0.14.0"
+log = "0.4.27"
+pretty_env_logger = "0.5.0"
+prettyplease = "0.1.25"
+proc-macro2 = "1.0.94"
+prost = "0.13.5"
+prost-build = "0.13.5"
+prost-types = { workspace = true }
+quote = "1.0.40"
+regex = "1.11.1"
+syn = { version = "1.0.109", features = ["full", "parsing", "extra-traits"] }
+tonic = "0.12.3"
+tonic-build = "0.12.3"
+walkdir = "2.5.0"
+serde-protobuf = "0.8.2"
+protobuf = "3.7.2"
