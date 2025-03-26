@@ -28,3 +28,5 @@ tonic-build = "0.12.3"
 walkdir = "2.5.0"
 serde-protobuf = "0.8.2"
 protobuf = "3.7.2"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }

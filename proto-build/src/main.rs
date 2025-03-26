@@ -1,109 +1,82 @@
 //! Based on the proto-compiler code in github.com/informalsystems/ibc-rs
 
-use std::{ fs, path::PathBuf };
-
+use std::{ env, fs, path::PathBuf };
 use proto_build::{ code_generator::{ CodeGenerator, CosmosProject }, git };
+use serde::Deserialize;
+use serde_json::from_str;
 
-/// Repository Links
-const COSMOS_SDK_REPO: &str = "https://github.com/cosmos/cosmos-sdk.git";
-const JUNO_REPO: &str = "https://github.com/CosmosContracts/juno.git";
-const WASMD_REPO: &str = "https://github.com/CosmWasm/wasmd.git";
-const COMETBFT_REPO: &str = "https://github.com/cometbft/cometbft.git";
-const IBC_GO_REPO: &str = "https://github.com/cosmos/ibc-go.git";
-const ICS23_REPO: &str = "https://github.com/cosmos/ics23.git";
+#[derive(Debug, Deserialize)]
+struct RepoConfig {
+    name: String,
+    repo: String,
+    rev: String,
+    dir: String,
+    #[serde(default)]
+    exclude_mods: Vec<String>,
+    is_main: bool,
+}
 
-/// Commits or tags
-const COSMOS_SDK_REV: &str = "v0.50.11";
-const JUNO_REV: &str = "v28.0.1";
-const WASMD_REV: &str = "v0.54.0";
-const COMETBFT_REV: &str = "v0.38.17";
-const IBC_GO_REV: &str = "v8.5.3";
-const ICS23_REV: &str = "go/v0.11.0";
-
-// All paths must end with a / and either be absolute or include a ./ to reference the current
-// working directory.
-const COSMOS_SDK_DIR: &str = "../dependencies/cosmos-sdk/";
-const JUNO_DIR: &str = "../dependencies/juno/";
-const WASMD_DIR: &str = "../dependencies/wasmd/";
-const COMETBFT_DIR: &str = "../dependencies/cometbft/";
-const IBC_GO_DIR: &str = "../dependencies/ibc-go/";
-const ICS23_DIR: &str = "../dependencies/ics23/";
-
-/// A temporary directory for repos storing
-const TMP_REPOS_DIR: &str = "./dependencies/";
-/// A temporary directory for proto building
-const TMP_BUILD_DIR: &str = "/tmp/tmp-protobuf/";
-/// The directory generated cosmos-sdk proto files go into in this repo
-const OUT_DIR: &str = "../packages/juno-std/src/types/";
+fn get_repo_configs_from_env() -> Vec<RepoConfig> {
+    let config_json = env
+        ::var("REPO_CONFIG")
+        .expect("Missing REPO_CONFIG env variable. Supply a JSON config with repository settings.");
+    from_str(&config_json).expect("Invalid JSON format in REPO_CONFIG")
+}
 
 pub fn generate() {
-    let tmp_repos_dir: PathBuf = TMP_REPOS_DIR.parse().unwrap();
-    if tmp_repos_dir.exists() {
-        fs::remove_dir_all(tmp_repos_dir.clone()).unwrap();
+    let repos = get_repo_configs_from_env();
+
+    // Clean up any previous dependencies directory.
+    let deps_dir = PathBuf::from("./dependencies/");
+    if deps_dir.exists() {
+        fs::remove_dir_all(&deps_dir).unwrap();
     }
 
-    git::clone_repo(COSMOS_SDK_REPO, COSMOS_SDK_DIR, COSMOS_SDK_REV);
-    git::clone_repo(JUNO_REPO, JUNO_DIR, JUNO_REV);
-    git::clone_repo(WASMD_REPO, WASMD_DIR, WASMD_REV);
-    git::clone_repo(COMETBFT_REPO, COMETBFT_DIR, COMETBFT_REV);
-    git::clone_repo(IBC_GO_REPO, IBC_GO_DIR, IBC_GO_REV);
-    git::clone_repo(ICS23_REPO, ICS23_DIR, ICS23_REV);
+    // Clone all repositories as defined in the config.
+    for config in &repos {
+        println!(
+            "Cloning {}: repo: {}, rev: {}, dir: {}",
+            config.name,
+            config.repo,
+            config.rev,
+            config.dir
+        );
+        git::clone_repo(&config.repo, &config.dir, &config.rev);
+    }
 
-    let tmp_build_dir: PathBuf = TMP_BUILD_DIR.parse().unwrap();
-    let out_dir: PathBuf = OUT_DIR.parse().unwrap();
+    let tmp_build_dir: PathBuf = "/tmp/tmp-protobuf/".into();
+    let out_dir: PathBuf = "../packages/juno-std/src/types/".into();
 
-    let cosmos_project = CosmosProject {
-        name: "cosmos".to_string(),
-        version: COSMOS_SDK_REV.to_string(),
-        project_dir: COSMOS_SDK_DIR.to_string(),
-        exclude_mods: vec!["reflection".to_string(), "autocli".to_string()],
+    // Dynamically pick the main project based on the `is_main` flag.
+    let main_project_config = repos
+        .iter()
+        .find(|r| r.is_main)
+        .expect("No main repository designated in configuration");
+
+    let main_project = CosmosProject {
+        name: main_project_config.name.clone(),
+        version: main_project_config.rev.clone(),
+        project_dir: main_project_config.dir.clone(),
+        exclude_mods: main_project_config.exclude_mods.clone(),
     };
 
-    let juno_project = CosmosProject {
-        name: "juno".to_string(),
-        version: JUNO_REV.to_string(),
-        project_dir: JUNO_DIR.to_string(),
-        exclude_mods: vec![],
-    };
+    // Use all other repos for additional projects.
+    let other_projects = repos
+        .iter()
+        .filter(|r| !r.is_main)
+        .map(|config| proto_build::code_generator::CosmosProject {
+            name: config.name.clone(),
+            version: config.rev.clone(),
+            project_dir: config.dir.clone(),
+            exclude_mods: config.exclude_mods.clone(),
+        })
+        .collect::<Vec<_>>();
 
-    let wasmd_project = CosmosProject {
-        name: "wasmd".to_string(),
-        version: WASMD_REV.to_string(),
-        project_dir: WASMD_DIR.to_string(),
-        exclude_mods: vec![],
-    };
-
-    let cometbft_project = CosmosProject {
-        name: "tendermint".to_string(),
-        version: COMETBFT_REV.to_string(),
-        project_dir: COMETBFT_DIR.to_string(),
-        exclude_mods: vec![],
-    };
-
-    let ibc_project = CosmosProject {
-        name: "ibc".to_string(),
-        version: IBC_GO_REV.to_string(),
-        project_dir: IBC_GO_DIR.to_string(),
-        exclude_mods: vec![],
-    };
-
-    let ics23_project = CosmosProject {
-        name: "ics23".to_string(),
-        version: ICS23_REV.to_string(),
-        project_dir: ICS23_DIR.to_string(),
-        exclude_mods: vec![],
-    };
-
-    let code_generator = CodeGenerator::new(
-        out_dir,
-        tmp_build_dir,
-        juno_project,
-        vec![cosmos_project, wasmd_project, cometbft_project, ibc_project, ics23_project]
-    );
+    let code_generator = CodeGenerator::new(out_dir, tmp_build_dir, main_project, other_projects);
 
     code_generator.generate();
 
-    fs::remove_dir_all(tmp_repos_dir.clone()).unwrap();
+    fs::remove_dir_all(deps_dir).unwrap();
 }
 
 fn main() {
