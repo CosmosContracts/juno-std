@@ -1,9 +1,13 @@
 //! Based on the proto-compiler code in github.com/informalsystems/ibc-rs
 
 use std::{ env, fs, path::PathBuf };
+use pretty_env_logger::init;
 use proto_build::{ code_generator::{ CodeGenerator, CosmosProject }, git };
 use serde::Deserialize;
 use serde_json::from_str;
+
+#[macro_use]
+extern crate log;
 
 #[derive(Debug, Deserialize)]
 struct RepoConfig {
@@ -16,38 +20,71 @@ struct RepoConfig {
     is_main: bool,
 }
 
+fn find_repo_root() -> PathBuf {
+    let mut current_dir = env::current_dir().expect("Could not determine current directory");
+    while !current_dir.join(".git").exists() {
+        // If no parent exists, panic.
+        current_dir = current_dir
+            .parent()
+            .expect("Could not find repository root (.git folder not found)")
+            .to_path_buf();
+    }
+    current_dir
+}
+
 fn get_repo_configs_from_env() -> Vec<RepoConfig> {
     let config_json = env
         ::var("REPO_CONFIG")
         .expect("Missing REPO_CONFIG env variable. Supply a JSON config with repository settings.");
+
+    debug!("REPO_CONFIG content: {}", config_json);
+
+    if config_json.trim().is_empty() {
+        panic!(
+            "REPO_CONFIG environment variable is empty. Please provide a valid JSON configuration."
+        );
+    }
+
     from_str(&config_json).expect("Invalid JSON format in REPO_CONFIG")
 }
 
 pub fn generate() {
     let repos = get_repo_configs_from_env();
 
-    // Clean up any previous dependencies directory.
-    let deps_dir = PathBuf::from("./dependencies/");
+    let repo_root = find_repo_root();
+    let deps_dir = repo_root.join("dependencies");
     if deps_dir.exists() {
         fs::remove_dir_all(&deps_dir).unwrap();
     }
 
-    // Clone all repositories as defined in the config.
     for config in &repos {
-        println!(
+        let repo_dir = deps_dir.join(&config.dir);
+        let repo_dir_str = repo_dir
+            .to_str()
+            .expect("Repository path contains invalid UTF-8 characters");
+        info!(
             "Cloning {}: repo: {}, rev: {}, dir: {}",
             config.name,
             config.repo,
             config.rev,
-            config.dir
+            repo_dir_str
         );
-        git::clone_repo(&config.repo, &config.dir, &config.rev);
+        git::clone_repo(&config.repo, &repo_dir_str, &config.rev);
     }
+    fs::create_dir_all(&deps_dir).unwrap_or_else(|e| {
+        panic!("Failed to create dependencies directory: {}", e);
+    });
 
-    let tmp_build_dir: PathBuf = "/tmp/tmp-protobuf/".into();
+    let tmp_build_dir = env::temp_dir().join("tmp-protobuf/");
+    if !tmp_build_dir.exists() {
+        info!("Creating temporary build directory: {:?}", tmp_build_dir);
+        fs::create_dir_all(&tmp_build_dir).unwrap_or_else(|e| {
+            panic!("Failed to create temporary directory: {}", e);
+        });
+    }
+    info!("Using temporary build directory: {:?}", tmp_build_dir);
     let out_dir: PathBuf = "../packages/juno-std/src/types/".into();
 
-    // Dynamically pick the main project based on the `is_main` flag.
     let main_project_config = repos
         .iter()
         .find(|r| r.is_main)
@@ -56,30 +93,39 @@ pub fn generate() {
     let main_project = CosmosProject {
         name: main_project_config.name.clone(),
         version: main_project_config.rev.clone(),
-        project_dir: main_project_config.dir.clone(),
+        project_dir: deps_dir
+            .join(&main_project_config.dir.clone())
+            .to_str()
+            .expect("Repository path contains invalid UTF-8 characters")
+            .to_string(),
         exclude_mods: main_project_config.exclude_mods.clone(),
     };
+    info!("Main project: {}", main_project.name.clone());
 
-    // Use all other repos for additional projects.
     let other_projects = repos
         .iter()
         .filter(|r| !r.is_main)
         .map(|config| proto_build::code_generator::CosmosProject {
             name: config.name.clone(),
             version: config.rev.clone(),
-            project_dir: config.dir.clone(),
+            project_dir: deps_dir
+                .join(&config.dir)
+                .to_str()
+                .expect("Repository path contains invalid UTF-8 characters")
+                .to_string(),
             exclude_mods: config.exclude_mods.clone(),
         })
         .collect::<Vec<_>>();
 
     let code_generator = CodeGenerator::new(out_dir, tmp_build_dir, main_project, other_projects);
-
     code_generator.generate();
 
+    debug!("Cleaning up dependencies directory...");
     fs::remove_dir_all(deps_dir).unwrap();
+    info!("Finished generation successfully!");
 }
 
 fn main() {
-    pretty_env_logger::init();
+    init();
     generate();
 }

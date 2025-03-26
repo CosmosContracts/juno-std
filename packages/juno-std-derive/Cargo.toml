@@ -3,7 +3,7 @@ description = "Procedural macros for `juno-std`. This package is a modified copy
 edition = "2021"
 license = "Apache-2.0"
 name = "juno-std-derive"
-version = "28.0.1"
+version = "28.0.2"
 
 [lib]
 proc-macro = true

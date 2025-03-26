@@ -1,15 +1,15 @@
-use std::fs::{create_dir_all, remove_dir_all};
-use std::path::{Path, PathBuf};
+use std::fs::{ create_dir_all, remove_dir_all };
+use std::path::{ Path, PathBuf };
 use std::process::Command;
-use std::{env, fs, io};
+use std::{ env, fs, io };
 
 extern crate protobuf;
 extern crate serde_protobuf;
 
-use log::{debug, info};
+use log::{ debug, info };
 use walkdir::WalkDir;
 
-use crate::{mod_gen, transform};
+use crate::{ mod_gen, transform };
 
 #[derive(Clone, Debug)]
 pub struct CosmosProject {
@@ -35,7 +35,7 @@ impl CodeGenerator {
         // TODO: remove tmp_build_dir from constructor in favor of generated tmp dir
         tmp_build_dir: PathBuf,
         project: CosmosProject,
-        deps: Vec<CosmosProject>,
+        deps: Vec<CosmosProject>
     ) -> Self {
         Self {
             project,
@@ -59,10 +59,7 @@ impl CodeGenerator {
         self.generate_mod_file();
         self.fmt();
 
-        info!(
-            "✨  [{}] Library is successfully generated!",
-            self.project.name
-        );
+        info!("✨  [{}] Library is successfully generated!", self.project.name);
     }
 
     fn prepare_dir(&self) {
@@ -70,11 +67,7 @@ impl CodeGenerator {
             remove_dir_all(self.tmp_build_dir.clone()).unwrap();
         }
         create_dir_all(self.tmp_namespaced_dir()).unwrap();
-        output_version_file(
-            &self.project.name,
-            &self.project.version,
-            &self.tmp_namespaced_dir(),
-        );
+        output_version_file(&self.project.name, &self.project.version, &self.tmp_namespaced_dir());
     }
 
     fn generate_mod_file(&self) {
@@ -85,7 +78,7 @@ impl CodeGenerator {
         transform::copy_and_transform_all(
             &self.tmp_namespaced_dir(),
             &self.absolute_out_dir(),
-            &self.file_descriptor_set(),
+            &self.file_descriptor_set()
         );
     }
 
@@ -118,30 +111,30 @@ impl CodeGenerator {
 
         let buf_gen_template = self.root.join("buf.gen.yaml");
 
-        info!(
-            "🧪 [{}] Compiling types from protobuf definitions...",
-            self.project.name
-        );
+        info!("🧪 [{}] Compiling types from protobuf definitions...", self.project.name);
 
         // Compile proto files for each file in `protos` variable
         // `buf generate —template {<buf_gen_template} <proto_file>`
         for project in all_related_projects {
-            let buf_root =
-                if project.name == "cosmos" || project.name == "ics23" || project.name == "admin" {
-                    self.root.join(&project.project_dir).join("proto")
-                } else {
-                    WalkDir::new(&self.root.join(&project.project_dir))
-                        .into_iter()
-                        .filter_map(|e| e.ok())
-                        .find(|e| {
-                            e.file_name()
-                                .to_str()
-                                .map(|s| s == "buf.yaml" || s == "buf.yml")
-                                .unwrap_or(false)
-                        })
-                        .map(|e| e.path().parent().unwrap().to_path_buf())
-                        .unwrap()
-                };
+            let buf_root = if
+                project.name == "cosmos" ||
+                project.name == "ics23" ||
+                project.name == "admin"
+            {
+                self.root.join(&project.project_dir).join("proto")
+            } else {
+                WalkDir::new(&self.root.join(&project.project_dir))
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                    .find(|e| {
+                        e.file_name()
+                            .to_str()
+                            .map(|s| (s == "buf.yaml" || s == "buf.yml"))
+                            .unwrap_or(false)
+                    })
+                    .map(|e| e.path().parent().unwrap().to_path_buf())
+                    .unwrap()
+            };
 
             debug!("buf_root for project {:?}: {:?}", project.name, buf_root);
 
@@ -157,18 +150,16 @@ impl CodeGenerator {
 
             if !project.exclude_mods.is_empty() {
                 for excluded_mod in project.exclude_mods.clone() {
-                    cmd.arg("--exclude-path")
-                        .arg(proto_path.join(project.name.clone()).join(excluded_mod));
+                    cmd.arg("--exclude-path").arg(
+                        proto_path.join(project.name.clone()).join(excluded_mod)
+                    );
                 }
             }
 
             let exit_status = cmd.spawn().unwrap().wait().unwrap();
 
             if !exit_status.success() {
-                panic!(
-                    "unable to generate with: {:?}",
-                    cmd.get_args().collect::<Vec<_>>()
-                );
+                panic!("unable to generate with: {:?}", cmd.get_args().collect::<Vec<_>>());
             }
 
             let descriptor_file = self
@@ -185,18 +176,16 @@ impl CodeGenerator {
 
             if !project.exclude_mods.is_empty() {
                 for include_mod in project.exclude_mods {
-                    cmd.arg("--exclude-path")
-                        .arg(proto_path.join(project.name.clone()).join(include_mod));
+                    cmd.arg("--exclude-path").arg(
+                        proto_path.join(project.name.clone()).join(include_mod)
+                    );
                 }
             }
 
             let exit_status = cmd.spawn().unwrap().wait().unwrap();
 
             if !exit_status.success() {
-                panic!(
-                    "unable to build with: {:?}",
-                    cmd.get_args().collect::<Vec<_>>()
-                );
+                panic!("unable to build with: {:?}", cmd.get_args().collect::<Vec<_>>());
             }
         }
 
@@ -208,7 +197,8 @@ impl CodeGenerator {
 
     pub fn file_descriptor_set(&self) -> protobuf::descriptor::FileDescriptorSet {
         // list all files in self.tmp_namespaced_dir()
-        let files = fs::read_dir(self.tmp_namespaced_dir())
+        let files = fs
+            ::read_dir(self.tmp_namespaced_dir())
             .unwrap()
             .map(|res| res.map(|e| e.path()))
             .collect::<Result<Vec<_>, io::Error>>()
@@ -217,13 +207,7 @@ impl CodeGenerator {
         // filter only files that match "descriptor_*.bin"
         let descriptor_files = files
             .iter()
-            .filter(|f| {
-                f.file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .starts_with("descriptor_")
-            })
+            .filter(|f| { f.file_name().unwrap().to_str().unwrap().starts_with("descriptor_") })
             .collect::<Vec<_>>();
 
         // read all files and merge them into one FileDescriptorSet
@@ -233,11 +217,10 @@ impl CodeGenerator {
         };
         for descriptor_file in descriptor_files {
             let descriptor_bytes = &fs::read(descriptor_file).unwrap()[..];
-            let mut file_descriptor_set_tmp: protobuf::descriptor::FileDescriptorSet =
-                protobuf::Message::parse_from_bytes(descriptor_bytes).unwrap();
-            file_descriptor_set
-                .file
-                .append(&mut file_descriptor_set_tmp.file);
+            let mut file_descriptor_set_tmp: protobuf::descriptor::FileDescriptorSet = protobuf::Message
+                ::parse_from_bytes(descriptor_bytes)
+                .unwrap();
+            file_descriptor_set.file.append(&mut file_descriptor_set_tmp.file);
         }
 
         file_descriptor_set
