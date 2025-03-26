@@ -4,6 +4,9 @@ on:
   repository_dispatch:
     types: [juno-release]
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
