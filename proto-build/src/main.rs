@@ -1,9 +1,13 @@
 //! Based on the proto-compiler code in github.com/informalsystems/ibc-rs
 
 use std::{ env, fs, path::PathBuf };
+use pretty_env_logger::init;
 use proto_build::{ code_generator::{ CodeGenerator, CosmosProject }, git };
 use serde::Deserialize;
 use serde_json::from_str;
+
+#[macro_use]
+extern crate log;
 
 #[derive(Debug, Deserialize)]
 struct RepoConfig {
@@ -21,7 +25,7 @@ fn get_repo_configs_from_env() -> Vec<RepoConfig> {
         ::var("REPO_CONFIG")
         .expect("Missing REPO_CONFIG env variable. Supply a JSON config with repository settings.");
 
-    println!("REPO_CONFIG content: {}", config_json);
+    debug!("REPO_CONFIG content: {}", config_json);
 
     if config_json.trim().is_empty() {
         panic!(
@@ -43,7 +47,7 @@ pub fn generate() {
 
     // Clone all repositories as defined in the config.
     for config in &repos {
-        println!(
+        info!(
             "Cloning {}: repo: {}, rev: {}, dir: {}",
             config.name,
             config.repo,
@@ -69,6 +73,8 @@ pub fn generate() {
         exclude_mods: main_project_config.exclude_mods.clone(),
     };
 
+    info!("Main project: {}", main_project.name.clone());
+
     // Use all other repos for additional projects.
     let other_projects = repos
         .iter()
@@ -83,12 +89,14 @@ pub fn generate() {
 
     let code_generator = CodeGenerator::new(out_dir, tmp_build_dir, main_project, other_projects);
 
+    info!("Starting generation...");
     code_generator.generate();
-
+    debug!("Cleaning up dependencies directory...");
     fs::remove_dir_all(deps_dir).unwrap();
+    info!("Finished generation successfully!");
 }
 
 fn main() {
-    pretty_env_logger::init();
+    init();
     generate();
 }
