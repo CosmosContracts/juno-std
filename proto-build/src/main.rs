@@ -23,6 +23,12 @@ fn get_repo_configs_from_env() -> Vec<RepoConfig> {
 
     println!("REPO_CONFIG content: {}", config_json);
 
+    if config_json.trim().is_empty() {
+        panic!(
+            "REPO_CONFIG environment variable is empty. Please provide a valid JSON configuration."
+        );
+    }
+
     from_str(&config_json).expect("Invalid JSON format in REPO_CONFIG")
 }
 
