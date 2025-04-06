@@ -23,8 +23,10 @@ jobs:
 
       - name: Set REPO_CONFIG from dispatch payload
         run: |
-          echo "REPO_CONFIG=${{ toJson(github.event.client_payload.repo_config) }}" >> $GITHUB_ENV
-          echo ${{ toJson(github.event.client_payload.repo_config) }}
+          echo 'REPO_CONFIG<<EOF' >> $GITHUB_ENV
+          echo '${{ toJson(github.event.client_payload.repo_config) }}' >> $GITHUB_ENV
+          echo 'EOF' >> $GITHUB_ENV
+          echo $GITHUB_ENV
 
       - name: Bump Cargo.toml versions
         run: |
