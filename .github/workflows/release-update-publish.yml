@@ -6,6 +6,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1,
+  RUST_LOG: info.debug,warning,trace,error
 
 jobs:
   build-and-publish:
