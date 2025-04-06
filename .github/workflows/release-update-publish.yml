@@ -22,7 +22,9 @@ jobs:
           components: rustfmt
 
       - name: Set REPO_CONFIG from dispatch payload
-        run: echo "REPO_CONFIG=${{ github.event.client_payload.repo_config }}" >> $GITHUB_ENV
+        run: |
+          echo "REPO_CONFIG=${{ github.event.client_payload.repo_config }}" >> $GITHUB_ENV
+          echo ${GITHUB_ENV}
 
       - name: Bump Cargo.toml versions
         run: |
