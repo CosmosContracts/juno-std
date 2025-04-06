@@ -24,46 +24,46 @@ jobs:
       - name: Set REPO_CONFIG from dispatch payload
         run: echo "REPO_CONFIG=${{ github.event.client_payload.repo_config }}" >> $GITHUB_ENV
 
-      # - name: Bump Cargo.toml versions
-      #   run: |
-      #     # Extract release tag from payload (e.g. "v28.0.1")
-      #     NEW_VERSION="${{ github.event.client_payload.release_tag }}"
-      #     # Remove the leading "v"
-      #     NEW_VERSION=${NEW_VERSION#v}
-      #     echo "Updating package Cargo.toml versions to ${NEW_VERSION}"
-      #     sed -i "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" packages/juno-std/Cargo.toml
-      #     sed -i "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" packages/juno-std-derive/Cargo.toml
+      - name: Bump Cargo.toml versions
+        run: |
+          # Extract release tag from payload (e.g. "v28.0.1")
+          NEW_VERSION="${{ github.event.client_payload.release_tag }}"
+          # Remove the leading "v"
+          NEW_VERSION=${NEW_VERSION#v}
+          echo "Updating package Cargo.toml versions to ${NEW_VERSION}"
+          sed -i "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" packages/juno-std/Cargo.toml
+          sed -i "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" packages/juno-std-derive/Cargo.toml
 
-      # - name: Run proto build from Makefile
-      #   run: make build-proto
+      - name: Run proto build from Makefile
+        run: make build-proto
 
-      # - name: Rustfmt Check
-      #   uses: actions-rust-lang/rustfmt@v1
+      - name: Rustfmt Check
+        uses: actions-rust-lang/rustfmt@v1
 
-      # - name: Commit Generated Files
-      #   run: |
-      #     git config user.name "github-actions[bot]"
-      #     git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      #     git add .
-      #     if ! git diff-index --quiet HEAD --; then
-      #       git commit -m "Generated files for release ${{ github.event.client_payload.release_tag }}"
-      #       git push
-      #     else
-      #       echo "No changes to commit."
-      #     fi
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit Generated Files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          if ! git diff-index --quiet HEAD --; then
+            git commit -m "Generated files for release ${{ github.event.client_payload.release_tag }}"
+            git push
+          else
+            echo "No changes to commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Create GitHub Release
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: ${{ github.ref_name }}
-      #     name: "Release ${{ github.ref_name }}"
-      #     body: "Generated files for release ${{ github.ref_name }}"
-      #     draft: ${{ github.event.client_payload.is_draft }}
-      #     prerelease: ${{ github.event.client_payload.is_prerelease }}
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          body: "Generated files for release ${{ github.ref_name }}"
+          draft: ${{ github.event.client_payload.is_draft }}
+          prerelease: ${{ github.event.client_payload.is_prerelease }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # - name: Publish juno-std-derive
       #   run: cargo publish --manifest-path packages/juno-std-derive/Cargo.toml
