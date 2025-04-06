@@ -20,6 +20,9 @@ fn get_repo_configs_from_env() -> Vec<RepoConfig> {
     let config_json = env
         ::var("REPO_CONFIG")
         .expect("Missing REPO_CONFIG env variable. Supply a JSON config with repository settings.");
+
+    println!("REPO_CONFIG content: {}", config_json);
+
     from_str(&config_json).expect("Invalid JSON format in REPO_CONFIG")
 }
 
