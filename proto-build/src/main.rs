@@ -39,13 +39,11 @@ fn get_repo_configs_from_env() -> Vec<RepoConfig> {
 pub fn generate() {
     let repos = get_repo_configs_from_env();
 
-    // Clean up any previous dependencies directory.
     let deps_dir = PathBuf::from("./dependencies/");
     if deps_dir.exists() {
         fs::remove_dir_all(&deps_dir).unwrap();
     }
 
-    // Clone all repositories as defined in the config.
     for config in &repos {
         info!(
             "Cloning {}: repo: {}, rev: {}, dir: {}",
@@ -57,10 +55,17 @@ pub fn generate() {
         git::clone_repo(&config.repo, &config.dir, &config.rev);
     }
 
-    let tmp_build_dir: PathBuf = "/tmp/tmp-protobuf/".into();
+    let tmp_build_dir = env::temp_dir().join("tmp-protobuf/");
+    if !tmp_build_dir.exists() {
+        info!("Creating temporary build directory: {:?}", tmp_build_dir);
+        fs::create_dir_all(&tmp_build_dir).unwrap_or_else(|e| {
+            panic!("Failed to create temporary directory: {}", e);
+        });
+    }
+
+    info!("Using temporary build directory: {:?}", tmp_build_dir);
     let out_dir: PathBuf = "../packages/juno-std/src/types/".into();
 
-    // Dynamically pick the main project based on the `is_main` flag.
     let main_project_config = repos
         .iter()
         .find(|r| r.is_main)
@@ -72,10 +77,8 @@ pub fn generate() {
         project_dir: main_project_config.dir.clone(),
         exclude_mods: main_project_config.exclude_mods.clone(),
     };
-
     info!("Main project: {}", main_project.name.clone());
 
-    // Use all other repos for additional projects.
     let other_projects = repos
         .iter()
         .filter(|r| !r.is_main)
@@ -88,9 +91,8 @@ pub fn generate() {
         .collect::<Vec<_>>();
 
     let code_generator = CodeGenerator::new(out_dir, tmp_build_dir, main_project, other_projects);
-
-    info!("Starting generation...");
     code_generator.generate();
+
     debug!("Cleaning up dependencies directory...");
     fs::remove_dir_all(deps_dir).unwrap();
     info!("Finished generation successfully!");
