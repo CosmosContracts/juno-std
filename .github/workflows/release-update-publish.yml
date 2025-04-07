@@ -21,6 +21,12 @@ jobs:
           override: true
           components: rustfmt
 
+      - name: "Install Buf CLI"
+        uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set REPO_CONFIG from dispatch payload
         run: |
           echo 'REPO_CONFIG<<EOF' >> $GITHUB_ENV
@@ -30,7 +36,7 @@ jobs:
 
       - name: Bump Cargo.toml versions
         run: |
-          # Extract release tag from payload (e.g. "v28.0.1")
+          # Extract release tag from payload (e.g. "v28.0.2")
           NEW_VERSION="${{ github.event.client_payload.release_tag }}"
           # Remove the leading "v"
           NEW_VERSION=${NEW_VERSION#v}
