@@ -19,6 +19,7 @@ jobs:
         with:
           toolchain: 1.78.0
           override: true
+          components: rustfmt
 
       - name: "Setup Buf CLI"
         uses: bufbuild/buf-action@v1
