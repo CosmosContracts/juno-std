@@ -58,14 +58,18 @@ pub fn generate() {
     }
 
     for config in &repos {
+        let repo_dir = deps_dir.join(&config.dir);
+        let repo_dir_str = repo_dir
+            .to_str()
+            .expect("Repository path contains invalid UTF-8 characters");
         info!(
             "Cloning {}: repo: {}, rev: {}, dir: {}",
             config.name,
             config.repo,
             config.rev,
-            config.dir
+            repo_dir_str
         );
-        git::clone_repo(&config.repo, &config.dir, &config.rev);
+        git::clone_repo(&config.repo, &repo_dir_str, &config.rev);
     }
     fs::create_dir_all(&deps_dir).unwrap_or_else(|e| {
         panic!("Failed to create dependencies directory: {}", e);
@@ -78,7 +82,6 @@ pub fn generate() {
             panic!("Failed to create temporary directory: {}", e);
         });
     }
-
     info!("Using temporary build directory: {:?}", tmp_build_dir);
     let out_dir: PathBuf = "../packages/juno-std/src/types/".into();
 
@@ -90,7 +93,11 @@ pub fn generate() {
     let main_project = CosmosProject {
         name: main_project_config.name.clone(),
         version: main_project_config.rev.clone(),
-        project_dir: main_project_config.dir.clone(),
+        project_dir: deps_dir
+            .join(&main_project_config.dir.clone())
+            .to_str()
+            .expect("Repository path contains invalid UTF-8 characters")
+            .to_string(),
         exclude_mods: main_project_config.exclude_mods.clone(),
     };
     info!("Main project: {}", main_project.name.clone());
@@ -101,7 +108,11 @@ pub fn generate() {
         .map(|config| proto_build::code_generator::CosmosProject {
             name: config.name.clone(),
             version: config.rev.clone(),
-            project_dir: config.dir.clone(),
+            project_dir: deps_dir
+                .join(&config.dir)
+                .to_str()
+                .expect("Repository path contains invalid UTF-8 characters")
+                .to_string(),
             exclude_mods: config.exclude_mods.clone(),
         })
         .collect::<Vec<_>>();

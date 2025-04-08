@@ -12,4 +12,4 @@ pub mod shim;
 #[allow(deprecated)]
 pub mod types;
 
-pub use shim::{cosmwasm_to_proto_coins, try_proto_to_cosmwasm_coins};
+pub use shim::{ cosmwasm_to_proto_coins, try_proto_to_cosmwasm_coins };

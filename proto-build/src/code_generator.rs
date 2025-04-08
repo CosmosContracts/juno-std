@@ -47,11 +47,6 @@ impl CodeGenerator {
     }
 
     pub fn generate(&self) {
-        info!("Starting generation process for project '{}'", self.project.name);
-        info!("Root directory: {:?}", self.root);
-        info!("Output directory: {:?}", self.out_dir);
-        info!("Temporary build directory: {:?}", self.tmp_build_dir);
-
         self.prepare_dir();
         self.compile_proto();
 
@@ -68,25 +63,10 @@ impl CodeGenerator {
     }
 
     fn prepare_dir(&self) {
-        info!("Preparing directories for project '{}'", self.project.name);
         if self.tmp_build_dir.exists() {
-            info!("Removing existing temporary build directory: {:?}", self.tmp_build_dir);
-            match remove_dir_all(self.tmp_build_dir.clone()) {
-                Ok(_) => info!("Successfully removed temporary build directory"),
-                Err(e) => {
-                    info!("Warning: Failed to remove temporary build directory: {}", e);
-                    // Continue anyway as this might not be critical
-                }
-            }
+            remove_dir_all(self.tmp_build_dir.clone()).unwrap();
         }
-
-        let namespaced_dir = self.tmp_namespaced_dir();
-        info!("Creating namespaced directory: {:?}", namespaced_dir);
-        match create_dir_all(&namespaced_dir) {
-            Ok(_) => info!("Successfully created namespaced directory"),
-            Err(e) => panic!("Failed to create namespaced directory: {}", e),
-        }
-
+        create_dir_all(self.tmp_namespaced_dir()).unwrap();
         output_version_file(&self.project.name, &self.project.version, &self.tmp_namespaced_dir());
     }
 
@@ -130,93 +110,35 @@ impl CodeGenerator {
         all_related_projects.push(self.project.clone());
 
         let buf_gen_template = self.root.join("buf.gen.yaml");
-        info!("Using buf.gen.yaml template at: {:?}", buf_gen_template);
 
         info!("🧪 [{}] Compiling types from protobuf definitions...", self.project.name);
 
         // Compile proto files for each file in `protos` variable
         // `buf generate —template {<buf_gen_template} <proto_file>`
         for project in all_related_projects {
-            info!("Processing project: {}", project.name);
-            let project_dir_path = self.root.join(&project.project_dir);
-            info!("Project directory: {:?}", project_dir_path);
-
             let buf_root = if
                 project.name == "cosmos" ||
                 project.name == "ics23" ||
                 project.name == "admin"
             {
-                let path = self.root.join(&project.project_dir).join("proto");
-                info!("Special project {} using proto directory: {:?}", project.name, path);
-                path
+                self.root.join(&project.project_dir).join("proto")
             } else {
-                // Try to find buf.yaml/buf.yml but handle the case when it doesn't exist
-                info!(
-                    "Looking for buf.yaml or buf.yml in {:?}",
-                    self.root.join(&project.project_dir)
-                );
-                match
-                    WalkDir::new(&self.root.join(&project.project_dir))
-                        .into_iter()
-                        .filter_map(|e| {
-                            if let Err(err) = &e {
-                                info!("Error walking directory: {}", err);
-                                return None;
-                            }
-                            e.ok()
-                        })
-                        .find(|e| {
-                            let is_buf_file = e
-                                .file_name()
-                                .to_str()
-                                .map(|s| (s == "buf.yaml" || s == "buf.yml"))
-                                .unwrap_or(false);
-                            if is_buf_file {
-                                info!("Found buf file at: {:?}", e.path());
-                            }
-                            is_buf_file
-                        })
-                        .map(|e| e.path().parent().unwrap().to_path_buf())
-                {
-                    Some(path) => {
-                        info!("Found buf configuration directory for {}: {:?}", project.name, path);
-                        path
-                    }
-                    None => {
-                        // If buf.yaml/buf.yml not found, use the project directory itself or proto subdirectory if it exists
-                        let proto_dir = self.root.join(&project.project_dir).join("proto");
-                        if proto_dir.exists() {
-                            info!("Using proto directory for {}: {:?}", project.name, proto_dir);
-                            proto_dir
-                        } else {
-                            info!(
-                                "No buf.yaml/buf.yml found for project {}. Using project directory: {:?}",
-                                project.name,
-                                self.root.join(&project.project_dir)
-                            );
-                            self.root.join(&project.project_dir)
-                        }
-                    }
-                }
+                WalkDir::new(&self.root.join(&project.project_dir))
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                    .find(|e| {
+                        e.file_name()
+                            .to_str()
+                            .map(|s| (s == "buf.yaml" || s == "buf.yml"))
+                            .unwrap_or(false)
+                    })
+                    .map(|e| e.path().parent().unwrap().to_path_buf())
+                    .unwrap()
             };
 
             debug!("buf_root for project {:?}: {:?}", project.name, buf_root);
-            info!("Using buf_root for {}: {:?}", project.name, buf_root);
-
-            // Create the directory if it doesn't exist
-            if !buf_root.exists() {
-                info!("Creating directory: {:?}", buf_root);
-                std::fs::create_dir_all(&buf_root).unwrap_or_else(|e| {
-                    panic!("Failed to create directory {:?}: {}", buf_root, e);
-                });
-            }
 
             let proto_path = &self.root.join(&project.project_dir).join("proto");
-            info!("Proto path for {}: {:?}", project.name, proto_path);
-
-            if !proto_path.exists() {
-                info!("Warning: Proto path does not exist: {:?}", proto_path);
-            }
 
             let mut cmd = Command::new("buf");
             cmd.arg("generate")
@@ -227,22 +149,14 @@ impl CodeGenerator {
                 .arg(self.tmp_namespaced_dir().to_string_lossy().to_string());
 
             if !project.exclude_mods.is_empty() {
-                info!("Excluding modules for {}: {:?}", project.name, project.exclude_mods);
                 for excluded_mod in project.exclude_mods.clone() {
-                    let exclude_path = proto_path.join(project.name.clone()).join(&excluded_mod);
-                    info!("Excluding path: {:?}", exclude_path);
-                    cmd.arg("--exclude-path").arg(exclude_path);
+                    cmd.arg("--exclude-path").arg(
+                        proto_path.join(project.name.clone()).join(excluded_mod)
+                    );
                 }
             }
 
-            info!("Running buf generate command: {:?}", cmd);
-            let spawn_result = cmd.spawn();
-
-            if let Err(err) = &spawn_result {
-                panic!("Failed to spawn buf generate command: {}", err);
-            }
-
-            let exit_status = spawn_result.unwrap().wait().unwrap();
+            let exit_status = cmd.spawn().unwrap().wait().unwrap();
 
             if !exit_status.success() {
                 panic!("unable to generate with: {:?}", cmd.get_args().collect::<Vec<_>>());
@@ -262,19 +176,13 @@ impl CodeGenerator {
 
             if !project.exclude_mods.is_empty() {
                 for include_mod in project.exclude_mods {
-                    let exclude_path = proto_path.join(project.name.clone()).join(&include_mod);
-                    cmd.arg("--exclude-path").arg(exclude_path);
+                    cmd.arg("--exclude-path").arg(
+                        proto_path.join(project.name.clone()).join(include_mod)
+                    );
                 }
             }
 
-            info!("Running buf build command: {:?}", cmd);
-            let spawn_result = cmd.spawn();
-
-            if let Err(err) = &spawn_result {
-                panic!("Failed to spawn buf build command: {}", err);
-            }
-
-            let exit_status = spawn_result.unwrap().wait().unwrap();
+            let exit_status = cmd.spawn().unwrap().wait().unwrap();
 
             if !exit_status.success() {
                 panic!("unable to build with: {:?}", cmd.get_args().collect::<Vec<_>>());

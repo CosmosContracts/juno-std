@@ -1,7 +1,7 @@
 use log::info;
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{ Command, Stdio };
 
 fn run_git(args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Result<(), String> {
     let stdout = Stdio::inherit();
@@ -13,10 +13,7 @@ fn run_git(args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Result<(), Stri
         .expect("git exit status missing");
 
     if !exit_status.success() {
-        return Err(format!(
-            "git exited with error code: {:?}",
-            exit_status.code()
-        ));
+        return Err(format!("git exited with error code: {:?}", exit_status.code()));
     }
 
     Ok(())
