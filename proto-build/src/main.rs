@@ -20,6 +20,18 @@ struct RepoConfig {
     is_main: bool,
 }
 
+fn find_repo_root() -> PathBuf {
+    let mut current_dir = env::current_dir().expect("Could not determine current directory");
+    while !current_dir.join(".git").exists() {
+        // If no parent exists, panic.
+        current_dir = current_dir
+            .parent()
+            .expect("Could not find repository root (.git folder not found)")
+            .to_path_buf();
+    }
+    current_dir
+}
+
 fn get_repo_configs_from_env() -> Vec<RepoConfig> {
     let config_json = env
         ::var("REPO_CONFIG")
@@ -39,7 +51,8 @@ fn get_repo_configs_from_env() -> Vec<RepoConfig> {
 pub fn generate() {
     let repos = get_repo_configs_from_env();
 
-    let deps_dir = PathBuf::from("./dependencies/");
+    let repo_root = find_repo_root();
+    let deps_dir = repo_root.join("dependencies");
     if deps_dir.exists() {
         fs::remove_dir_all(&deps_dir).unwrap();
     }
@@ -54,6 +67,9 @@ pub fn generate() {
         );
         git::clone_repo(&config.repo, &config.dir, &config.rev);
     }
+    fs::create_dir_all(&deps_dir).unwrap_or_else(|e| {
+        panic!("Failed to create dependencies directory: {}", e);
+    });
 
     let tmp_build_dir = env::temp_dir().join("tmp-protobuf/");
     if !tmp_build_dir.exists() {
